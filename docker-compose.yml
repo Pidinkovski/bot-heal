@@ -1,39 +1,61 @@
 # Clawdbot Docker Compose
-# External Watchman - Auto-restarts on crash
+# Self-Healing External Watchman
 #
 # Usage:
-#   docker-compose up -d
-
-version: '3.8'
+#   docker compose up -d        # Start
+#   docker compose logs -f      # View logs
+#   docker compose restart      # Restart
+#   docker compose down         # Stop
 
 services:
   clawdbot:
     image: node:22-slim
     container_name: clawdbot
     working_dir: /app
-    command: npx clawdbot gateway
+    
+    # Install and run Clawdbot
+    command: >
+      sh -c "
+        npm install -g clawdbot &&
+        clawdbot gateway
+      "
     
     # === SELF-HEALING (External Watchman) ===
     restart: unless-stopped
     
     # === HEALTH CHECK ===
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18790/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:18790/health || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
     
     # === VOLUMES ===
     volumes:
-      - ./workspace:/app/workspace
-      - ./config.yaml:/app/config.yaml:ro
+      # Workspace (your SOUL.md, skills, memory, etc.)
+      - ./workspace:/root/clawd
+      # Config file
+      - ./config.yaml:/root/.clawdbot/config.yaml:ro
+      # Persist node modules (faster restarts)
+      - clawdbot_node_modules:/usr/local/lib/node_modules
     
     # === ENVIRONMENT ===
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    
+    # === NETWORK ===
+    ports:
+      - "18790:18790"  # Health check / API
+    
+    # === RESOURCES (Optional limits) ===
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 512M
+    #       cpus: '0.5'
     
     # === LOGGING ===
     logging:
@@ -41,3 +63,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  clawdbot_node_modules:

@@ -32,13 +32,33 @@ Complete self-healing system for Clawdbot/OpenClaw with **two layers of protecti
 
 ## Quick Install
 
+### Full Install (with Docker)
+
 ```bash
 git clone https://github.com/Pidinkovski/bot-heal.git
 cd bot-heal
 sudo ./install.sh /path/to/workspace
 ```
 
-Or manually:
+This will:
+1. Install Docker (if not present)
+2. Setup docker-compose
+3. Install self-healing skills
+4. Configure auto-restart
+
+### Without Docker (systemd only)
+
+```bash
+sudo ./install.sh --no-docker /path/to/workspace
+```
+
+### Skills Only (no external watchman)
+
+```bash
+./install.sh --skills-only /path/to/workspace
+```
+
+### Manual Install
 
 ```bash
 # Internal watchman (heartbeat)
@@ -47,7 +67,7 @@ cp HEARTBEAT.md /workspace/
 
 # External watchman (pick one)
 sudo cp clawdbot.service /etc/systemd/system/   # Option A: Systemd
-docker-compose up -d                              # Option B: Docker
+docker compose up -d                             # Option B: Docker
 ```
 
 ## Files
