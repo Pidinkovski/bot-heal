@@ -1,76 +1,174 @@
-# 🩹 Bot Self-Healing Skill
+# 🩹 Bot Self-Healing
 
-A self-healing skill for Clawdbot/OpenClaw that monitors the bot's health and automatically fixes common issues.
+Complete self-healing system for Clawdbot/OpenClaw with **two layers of protection**.
 
-## What It Does
+## Architecture
 
 ```
-Every 3 hours:
-├── Check: Service running?     → Restart if dead
-├── Check: Disk space ok?       → Alert if >85%
-├── Check: Memory ok?           → Alert if >90%
-├── Check: Errors in logs?      → Fix or alert
-├── Check: Network working?     → Retry or alert
-└── All good?                   → HEARTBEAT_OK
+┌─────────────────────────────────────────────────────┐
+│         LAYER 1: EXTERNAL WATCHMAN                  │
+│         (systemd / Docker)                          │
+│                                                     │
+│   Bot crashes? → Auto-restart in 10 seconds         │
+│   Cost: FREE | Complexity: Zero                     │
+└─────────────────────┬───────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────┐
+│         LAYER 2: INTERNAL WATCHMAN                  │
+│         (Heartbeat + Self-Healing Skill)            │
+│                                                     │
+│   Every 3 hours:                                    │
+│   • Check service, disk, memory, logs, network      │
+│   • Fix problems BEFORE they cause crashes          │
+│   • Alert owner only for critical issues            │
+│   Cost: FREE | Complexity: Zero                     │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Features
+**Why two layers?**
+- External catches crashes (can't prevent them)
+- Internal prevents crashes (can't catch them if it dies)
+- Together = bulletproof 🛡️
 
-- ✅ Auto-restart stopped services
-- ✅ Clear temp files when bloated
-- ✅ Handle rate limits gracefully
-- ✅ Retry failed connections
-- ✅ Alert owner only for critical issues
-- ✅ Log all actions for debugging
+## Quick Install
 
-## Installation
+```bash
+git clone https://github.com/Pidinkovski/bot-heal.git
+cd bot-heal
+sudo ./install.sh /path/to/workspace
+```
 
-1. Copy files to your Clawdbot workspace:
-   ```bash
-   cp SKILL.md /path/to/workspace/skills/self-healing/
-   cp HEARTBEAT.md /path/to/workspace/
-   ```
+Or manually:
 
-2. Configure heartbeat interval (optional, default works):
-   ```yaml
-   # In clawdbot config
-   heartbeat:
-     intervalMinutes: 180  # 3 hours
-   ```
+```bash
+# Internal watchman (heartbeat)
+cp SKILL.md /workspace/skills/self-healing/
+cp HEARTBEAT.md /workspace/
 
-3. Done! Bot will now monitor itself.
+# External watchman (pick one)
+sudo cp clawdbot.service /etc/systemd/system/   # Option A: Systemd
+docker-compose up -d                              # Option B: Docker
+```
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `SKILL.md` | Full self-healing logic and procedures |
-| `HEARTBEAT.md` | Quick reference for heartbeat checks |
+| `SKILL.md` | Self-healing logic (what to check, how to fix) |
+| `HEARTBEAT.md` | Heartbeat configuration |
+| `clawdbot.service` | Systemd service (external watchman) |
+| `docker-compose.yml` | Docker setup (external watchman) |
+| `install.sh` | One-command installer |
 
 ## What Gets Fixed Automatically
 
-| Problem | Auto-Fix |
-|---------|----------|
-| Service stopped | Restart service |
-| Temp files large | Clean /tmp |
+### By Internal Watchman (every 3 hours)
+
+| Problem | Action |
+|---------|--------|
+| Service stopped | Restart |
+| Temp files bloated | Clean |
 | Rate limited | Wait and retry |
 | Connection timeout | Retry |
+| Disk 70-85% | Log warning |
+| Minor errors | Monitor |
+
+### By External Watchman (instant)
+
+| Problem | Action |
+|---------|--------|
+| Process crashed | Restart in 10s |
+| Out of memory kill | Restart in 10s |
+| Unhandled exception | Restart in 10s |
 
 ## What Alerts You
 
-| Problem | Why |
-|---------|-----|
-| Disk > 85% | Can't auto-fix, needs cleanup |
+| Problem | Why Can't Auto-Fix |
+|---------|-------------------|
+| Disk > 85% | Needs manual cleanup |
 | Memory > 90% | Needs investigation |
 | 3 restart failures | Something deeply wrong |
 | Config error | Needs manual fix |
 | API key invalid | Needs new key |
 
+## Configuration
+
+### Heartbeat Interval
+
+Default: 3 hours. Change in your Clawdbot config:
+
+```yaml
+heartbeat:
+  intervalMinutes: 180   # 3 hours
+  # intervalMinutes: 60  # 1 hour (more frequent)
+```
+
+### Systemd Service
+
+Edit `/etc/systemd/system/clawdbot.service`:
+
+```ini
+# Change restart delay
+RestartSec=10
+
+# Change user
+User=your-user
+
+# Change workspace path
+WorkingDirectory=/your/path
+```
+
+Then reload:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart clawdbot
+```
+
+## Monitoring Commands
+
+```bash
+# Check service status
+sudo systemctl status clawdbot
+
+# View recent logs
+journalctl -u clawdbot -n 50
+
+# Follow logs live
+journalctl -u clawdbot -f
+
+# Check self-healing log
+cat /workspace/memory/self-healing.md
+```
+
 ## Cost
 
-**FREE** — Works with Gemini Flash free tier (15 RPM).
+**€0 / month**
 
-8 heartbeats/day = 0.005 RPM used.
+- Systemd: Free (built into Linux)
+- Docker: Free
+- Heartbeat: Free (Gemini Flash free tier: 15 RPM, you use 0.005 RPM)
+
+## FAQ
+
+**Q: Why not use a Python monitoring script?**
+
+A: Systemd already does this better. A Python script is:
+- Extra process to manage
+- Extra log file
+- Can crash itself
+- Needs manual start
+- Reinventing the wheel
+
+**Q: What if both watchmen fail?**
+
+A: Then your server has bigger problems. But you'd have:
+- healthchecks.io ping (alerts you)
+- Uptime Kuma (external monitoring)
+- See [MONITORING-STACK.md] for full setup
+
+**Q: Can the bot fix disk space issues?**
+
+A: It can clean temp files, but won't delete user data. For disk >85%, it alerts you because it needs human judgment on what to delete.
 
 ## License
 
@@ -78,4 +176,4 @@ MIT — Use it, modify it, share it.
 
 ---
 
-*Made by [ailqkai](https://ailqkai.com)*
+*Made by [ailqkai](https://ailqkai.com) 🇧🇬*

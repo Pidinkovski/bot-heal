@@ -1,0 +1,43 @@
+# Clawdbot Docker Compose
+# External Watchman - Auto-restarts on crash
+#
+# Usage:
+#   docker-compose up -d
+
+version: '3.8'
+
+services:
+  clawdbot:
+    image: node:22-slim
+    container_name: clawdbot
+    working_dir: /app
+    command: npx clawdbot gateway
+    
+    # === SELF-HEALING (External Watchman) ===
+    restart: unless-stopped
+    
+    # === HEALTH CHECK ===
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18790/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    # === VOLUMES ===
+    volumes:
+      - ./workspace:/app/workspace
+      - ./config.yaml:/app/config.yaml:ro
+    
+    # === ENVIRONMENT ===
+    environment:
+      - NODE_ENV=production
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    
+    # === LOGGING ===
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

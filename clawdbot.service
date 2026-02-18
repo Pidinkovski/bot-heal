@@ -1,0 +1,41 @@
+# Clawdbot Systemd Service
+# External Watchman - Auto-restarts on crash
+#
+# Install:
+#   sudo cp clawdbot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable clawdbot
+#   sudo systemctl start clawdbot
+
+[Unit]
+Description=Clawdbot AI Assistant
+After=network.target
+
+[Service]
+Type=simple
+User=clawdbot
+WorkingDirectory=/home/clawdbot/workspace
+ExecStart=/usr/bin/clawdbot gateway
+
+# === SELF-HEALING (External Watchman) ===
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# === ENVIRONMENT ===
+Environment=NODE_ENV=production
+
+# === LOGGING ===
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clawdbot
+
+# === SECURITY (Optional hardening) ===
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/clawdbot/workspace
+
+[Install]
+WantedBy=multi-user.target
